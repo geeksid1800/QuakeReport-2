@@ -42,6 +42,7 @@ public final class QueryUtils {
      */
     public static List<Quake> fetchEarthquakeData(String requestUrl) {
 
+
         // Create URL object
         URL url = createUrl(requestUrl);
 
