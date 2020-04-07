@@ -17,6 +17,7 @@ package com.example.android.quakereport;
 
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.net.Uri;
@@ -28,7 +29,10 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.loader.app.LoaderManager;
 import androidx.loader.content.Loader;
 
+import android.preference.PreferenceManager;
 import android.util.Log;
+import android.view.Menu;
+import android.view.MenuItem;
 import android.view.View;
 import android.widget.AdapterView;
 import android.widget.ListView;
@@ -52,8 +56,13 @@ public class EarthquakeActivity extends AppCompatActivity implements LoaderManag
     private static final int EARTHQUAKE_LOADER_ID = 1;
 
     /** query URL for earthquake data from the USGS dataset */
-    private static final String USGS_REQUEST_URL =
-            "https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson&eventtype=earthquake&orderby=time&minmag=6&limit=10";
+
+    /** let's modify the value of the USGS_REQUEST_URL constant in the EarthquakeActivity class to the base URI.
+     *  Later we’ll use UriBuilder.appendQueryParameter() methods to add  additional parameters to the URI
+     *  (such as JSON response format, 10 earthquakes requested, minimum magnitude value, and sort order).
+     */
+    private static final String USGS_REQUEST_URL = "https://earthquake.usgs.gov/fdsnws/event/1/query";
+
 
     public static final String TAG = EarthquakeActivity.class.getName();
 
@@ -65,7 +74,24 @@ public class EarthquakeActivity extends AppCompatActivity implements LoaderManag
     //Made it global as it needs to be accessed by other class too
     private QuakeAdapter mAdapter;
 
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        //To use the menu in your activity, you need to inflate the menu resource
+        // (convert the XML resource into a programmable object) using MenuInflater.inflate()
+        getMenuInflater().inflate(R.menu.main, menu);
+        return true;
+    }
 
+    @Override
+    public boolean onOptionsItemSelected(@NonNull MenuItem item) {
+        int id = item.getItemId();
+        if(id == R.id.action_settings){
+            Intent SettingsIntent = new Intent(this, SettingsActivity.class);
+            startActivity(SettingsIntent);
+            return true;
+        }
+        return super.onOptionsItemSelected(item);
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -86,18 +112,18 @@ public class EarthquakeActivity extends AppCompatActivity implements LoaderManag
         mEmptyStateTextView = (TextView) findViewById(R.id.empty_view);
         earthquakeListView.setEmptyView(mEmptyStateTextView);
 
+
+
         // Get a reference to the ConnectivityManager to check state of network connectivity
         ConnectivityManager connMgr = (ConnectivityManager)
                 getSystemService(Context.CONNECTIVITY_SERVICE);
-
         // Get details on the currently active default data network
         NetworkInfo networkInfo = connMgr.getActiveNetworkInfo();
-
         // If there is a network connection, fetch data
         if (networkInfo != null && networkInfo.isConnected()) {
+
             // Get a reference to the LoaderManager, in order to interact with loaders.
             LoaderManager loaderManager = getSupportLoaderManager();
-
             // Initialize the loader. Pass in the int ID constant defined above and pass in null for
             // the bundle. Pass in this activity for the LoaderCallbacks parameter (which is valid
             // because this activity implements the LoaderCallbacks interface).
@@ -136,14 +162,35 @@ public class EarthquakeActivity extends AppCompatActivity implements LoaderManag
 
     }
 
-
-
+    /*  We can replace the body of onCreateLoader() method to read the user’s latest preferences for the minimum magnitude,
+        construct a proper URI with their preference, and then create a new Loader for that URI.
+     */
     @NonNull
     @Override
     public Loader<List<Quake>> onCreateLoader(int i, Bundle bundle) {
-        // Create a new loader for the given URL
-        Log.e(TAG,"OnCreateLoader");
-        return new EarthquakeLoader(this, USGS_REQUEST_URL);
+        SharedPreferences sharedPrefs = PreferenceManager.getDefaultSharedPreferences(this);
+        String minMagnitude = sharedPrefs.getString(
+                getString(R.string.settings_min_magnitude_key),
+                getString(R.string.settings_min_magnitude_default));
+
+        String noOfResults = sharedPrefs.getString(
+                getString(R.string.settings_number_of_results_key),
+                getString(R.string.settings_number_of_results_default));
+
+        Uri baseUri = Uri.parse(USGS_REQUEST_URL);
+        Uri.Builder uriBuilder = baseUri.buildUpon();
+
+        uriBuilder.appendQueryParameter("format", "geojson");
+        uriBuilder.appendQueryParameter("limit", noOfResults);
+        uriBuilder.appendQueryParameter("minmag", minMagnitude);
+        uriBuilder.appendQueryParameter("orderby", "time");
+
+        TextView urlText = findViewById(R.id.URLtext);
+        urlText.setText(uriBuilder.toString());
+        //put a text at the bottom to show the query used
+
+        return new EarthquakeLoader(this, uriBuilder.toString());
+        //from here the new loader is passed to EarthquakeLoader's constructor
     }
 
     @Override
